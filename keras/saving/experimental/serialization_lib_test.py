@@ -195,6 +195,44 @@ class SerializationLibTest(tf.test.TestCase, parameterized.TestCase):
         self.assertIs(model.layers[2], model.layers[3].layer)
         self.assertIs(new_model.layers[2], new_model.layers[3].layer)
 
+    def test_functional_subclass(self):
+        class PlainFunctionalSubclass(keras.Model):
+            pass
+
+        inputs = keras.Input((2,))
+        outputs = keras.layers.Dense(1)(inputs)
+        model = PlainFunctionalSubclass(inputs, outputs)
+        x = tf.random.normal((2, 2))
+        y1 = model(x)
+        _, new_model, _ = self.roundtrip(
+            model,
+            custom_objects={"PlainFunctionalSubclass": PlainFunctionalSubclass},
+        )
+        new_model.set_weights(model.get_weights())
+        y2 = new_model(x)
+        self.assertAllClose(y1, y2, atol=1e-5)
+        self.assertIsInstance(new_model, PlainFunctionalSubclass)
+
+        class FunctionalSubclassWCustomInit(keras.Model):
+            def __init__(self, num_units=1, **kwargs):
+                inputs = keras.Input((2,))
+                outputs = keras.layers.Dense(num_units)(inputs)
+                super().__init__(inputs, outputs)
+
+        model = FunctionalSubclassWCustomInit(num_units=2)
+        x = tf.random.normal((2, 2))
+        y1 = model(x)
+        _, new_model, _ = self.roundtrip(
+            model,
+            custom_objects={
+                "FunctionalSubclassWCustomInit": FunctionalSubclassWCustomInit
+            },
+        )
+        new_model.set_weights(model.get_weights())
+        y2 = new_model(x)
+        self.assertAllClose(y1, y2, atol=1e-5)
+        self.assertIsInstance(new_model, FunctionalSubclassWCustomInit)
+
     def test_shared_object(self):
         class MyLayer(keras.layers.Layer):
             def __init__(self, activation, **kwargs):
